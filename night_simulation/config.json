@@ -1,0 +1,26 @@
+{
+  "darkening_factor": 0.35,
+  "gamma": 2.2,
+  "headlight_brightness": 0.9,
+  "streetlight_brightness": 0.8,
+  "headlight_enabled": true,
+  "streetlight_enabled": true,
+  "volumetric_enabled": true,
+  "ground_reflection_enabled": true,
+  "lens_flare_enabled": true,
+  "reflection_strength": 0.45,
+  "detect_vehicles": true,
+  "_comments": {
+    "darkening_factor": "Overall brightness (0.2-0.5). Default 0.35 preserves road texture",
+    "gamma": "Gamma correction (1.8-3.0). Default 2.2 prevents crushing detail",
+    "headlight_brightness": "LED headlight intensity (0.6-1.2). Default 0.9",
+    "streetlight_brightness": "Sodium-vapor light intensity (0.5-1.0). Default 0.8",
+    "headlight_enabled": "Enable intelligent headlight detection and placement",
+    "streetlight_enabled": "Enable infrastructure pole detection for lights",
+    "volumetric_enabled": "Enable directional volumetric light cones",
+    "ground_reflection_enabled": "Enable ground reflections on damp surfaces",
+    "lens_flare_enabled": "Enable subtle lens flare around lights",
+    "reflection_strength": "Ground reflection intensity (0.2-0.6). Default 0.45",
+    "detect_vehicles": "Auto-detect vehicles for intelligent headlight placement"
+  }
+}
