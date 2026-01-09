@@ -3,6 +3,7 @@ input_files/*
 !input_files/.gitkeep
 output_files/*
 !output_files/.gitkeep
+/site_2_yolov11n_v1+v2.pt
 
 # Python
 __pycache__/
