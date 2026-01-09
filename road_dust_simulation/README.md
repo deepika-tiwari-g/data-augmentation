@@ -4,6 +4,12 @@ Realistic dust cloud simulation for mining/industrial site vehicle images. Gener
 
 ## Features
 
+🎯 **YOLO Vehicle Detection**
+- Automatic vehicle detection using site-specific YOLOv11 model
+- Detects multiple vehicles per image
+- Confidence-based filtering (> 0.25)
+- Adds dust around bottom of each detected vehicle
+
 ✨ **Realistic Physics**
 - Particle-based dust simulation with Brownian motion
 - Tire-based emitter system (rear wheels)
@@ -11,14 +17,14 @@ Realistic dust cloud simulation for mining/industrial site vehicle images. Gener
 - Speed-dependent dust intensity
 
 🎨 **Visual Realism**
-- Volumetric clouds using Perlin noise
+- Volumetric clouds using simplified Perlin-like noise
 - Road color sampling for natural blending
 - Alpha blending with density gradients
 - Atmospheric haze effects
 
 ⚙️ **Flexible Configuration**
 - Adjustable vehicle speed (0.5x - 2.0x)
-- Multiple variant generation
+- Multiple variant generation (light, medium, heavy)
 - Batch processing support
 - Command-line interface
 
@@ -43,50 +49,41 @@ cp /path/to/your/images/*.jpg input_files/
 
 **Basic usage (default settings):**
 ```bash
-python process_images.py
+python road_dust_augmentation.py
 ```
 
 **Custom speed:**
 ```bash
-python process_images.py --speed 1.5
+python road_dust_augmentation.py --speed 1.5
 ```
 
-**Generate multiple variants:**
+**Generate multiple variants (light, medium, heavy):**
 ```bash
-python process_images.py --variants 3
+python road_dust_augmentation.py --variants 3
+```
+
+**Use simplified method (faster):**
+```bash
+python road_dust_augmentation.py --simple
 ```
 
 **Full options:**
 ```bash
-python process_images.py \
+python road_dust_augmentation.py \
   --input-dir input_files \
-  --output-dir output_images \
+  --output-dir output_files \
   --speed 1.0 \
   --variants 1
 ```
 
 ### 3. Check Results
 
-Processed images will be saved in `output_images/` folder.
-
-## Testing
-
-Run the test script to see dust simulation with different speeds:
-
-```bash
-python test_dust_simulator.py
-```
-
-This generates synthetic test images showing:
-- Slow speed (light dust)
-- Normal speed (moderate dust)
-- Fast speed (heavy dust)
-- Very fast speed (very heavy dust)
+Processed images will be saved in `output_files/` folder.
 
 ## Usage as Python Module
 
 ```python
-from dust_simulator import add_dust_wake
+from road_dust_augmentation import add_dust_wake
 import cv2
 
 # Load image
@@ -123,9 +120,10 @@ cv2.imwrite('dusty_vehicle.jpg', result)
 | Argument | Default | Description |
 |----------|---------|-------------|
 | `--input-dir` | input_files | Input directory |
-| `--output-dir` | output_images | Output directory |
+| `--output-dir` | output_files | Output directory |
 | `--speed` | 1.0 | Vehicle speed multiplier |
 | `--variants` | 1 | Number of variants per image |
+| `--simple` | False | Use simplified method (faster) |
 
 ## How It Works
 
@@ -168,13 +166,12 @@ Dust generates from rear wheel positions:
 
 ```
 road_dust_simulation/
-├── dust_simulator.py       # Core simulation engine
-├── process_images.py       # Batch processing script
-├── test_dust_simulator.py  # Testing utilities
-├── requirements.txt        # Python dependencies
-├── README.md              # This file
-├── input_files/           # Place input images here
-└── output_images/         # Processed images saved here
+├── road_dust_augmentation.py      # Complete dust simulation script
+├── site_2_yolov11n_v1+v2.pt       # YOLO vehicle detection model
+├── requirements.txt                # Python dependencies
+├── README.md                       # This file
+├── input_files/                    # Place input images here
+└── output_files/                   # Processed images saved here
 ```
 
 ## Vehicle Types Supported
@@ -244,8 +241,7 @@ for detection in detections:
 - Python 3.7+
 - OpenCV (cv2)
 - NumPy
-- Pillow
-- noise (Perlin noise library)
+- Ultralytics YOLO (for vehicle detection)
 
 ## License
 
@@ -261,6 +257,6 @@ Check out other augmentation scripts in the parent directory:
 ## Support
 
 For issues or questions, check:
-1. Test script output: `python test_dust_simulator.py`
+1. Verify YOLO model exists: `ls -lh site_2_yolov11n_v1+v2.pt`
 2. Verify dependencies: `pip install -r requirements.txt`
 3. Check input image format and paths

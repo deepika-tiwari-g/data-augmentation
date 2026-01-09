@@ -15,7 +15,7 @@ ENV/
 *.swo
 
 # Project specific
-output_images/
+output_files/
 input_files/
 *.log
 
