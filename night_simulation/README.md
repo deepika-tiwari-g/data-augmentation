@@ -1,30 +1,38 @@
 # Night Simulation for Data Augmentation
 
-This tool converts day images to realistic night images for data augmentation in computer vision projects, specifically designed for mining, plant, and industrial site surveillance footage.
+This tool converts day images to realistic twilight/evening scenes for data augmentation in computer vision projects, specifically designed for mining, plant, and industrial site surveillance footage.
 
 ## Features
 
-✨ **Pitch-Black Darkness**: Extreme gamma correction (3.5) and deep darkening for realistic midnight conditions  
-🚗 **Bright LED Headlights**: Pure white LED lights with high intensity and realistic beam patterns  
-🌟 **Volumetric Light Cones**: Long, realistic light beams casting forward from headlights and downward from street lights  
-💡 **Sodium-Vapor Street Lights**: Warm orange-yellow industrial lighting with authentic glow  
-💧 **Ground Reflections**: Wet surface reflections for damp industrial environments  
-✨ **Lens Flare Effects**: Realistic camera lens flare around bright light sources  
-🎨 **High Contrast**: Deep shadows with bright light sources for dramatic industrial scenes  
-⚙️ **Fully Configurable**: Control every aspect via JSON config file or command-line arguments
+🌆 **Twilight Simulation**: Moderate darkening with gamma correction for realistic evening/dusk conditions  
+🚗 **Intelligent Headlights**: White LED headlights with automatic placement based on vehicle position and direction  
+🎯 **Custom YOLO Support**: Integrates with your custom-trained YOLO models for accurate vehicle detection  
+💡 **Right-Side Street Lights**: Golden-orange industrial street lights positioned on the right side with wide spread  
+🔦 **Directional Light Beams**: Smart beam projection based on vehicle orientation (left, right, or facing camera)  
+🌟 **Volumetric Light Cones**: Realistic light beams with falloff and cone expansion  
+⚙️ **Fully Configurable**: Control darkness, brightness, and spread via JSON config or command-line arguments
 
 ## Installation
 
 ### Requirements
 - Python 3.7+
-- OpenCV (cv2)
+- OpenCV (`opencv-python`)
 - NumPy
+- Ultralytics YOLO (optional, for vehicle detection)
 
 ### Install Dependencies
 
 ```bash
 pip install opencv-python numpy
 ```
+
+### Optional: Install YOLO for Vehicle Detection
+
+```bash
+pip install ultralytics
+```
+
+> **Note**: If YOLO is not installed, the script will use a fallback edge-based vehicle detection method.
 
 ## Usage
 
@@ -34,226 +42,254 @@ pip install opencv-python numpy
 2. Run the script:
 
 ```bash
-python night_simulator.py
+python night_sim_final.py
 ```
 
-3. Find realistic midnight images in the `output_files` folder
+3. Find twilight/evening images in the `output_files` folder with `night_` prefix
 
 ### Advanced Usage
 
 #### Custom Input/Output Directories
 
 ```bash
-python night_simulator.py -i /path/to/input -o /path/to/output
+python night_sim_final.py -i /path/to/input -o /path/to/output
 ```
+
+#### Use Custom YOLO Model
+
+```bash
+python night_sim_final.py -m /path/to/your_model.pt
+```
+
+Default model path: `site_2_yolov11n_v1+v2.pt`
 
 #### Use Custom Configuration
 
 ```bash
-python night_simulator.py -c custom_config.json
+python night_sim_final.py -c custom_config.json
 ```
 
-#### Disable Specific Effects
+#### Combined Options
 
 ```bash
-# Disable vehicle detection
-python night_simulator.py --no-detect-vehicles
-
-# Disable volumetric light cones
-python night_simulator.py --no-volumetric
-
-# Disable ground reflections
-python night_simulator.py --no-reflections
-
-# Disable lens flare
-python night_simulator.py --no-lens-flare
-
-# Combine multiple options
-python night_simulator.py --no-volumetric --no-reflections
-```
-
-#### Quiet Mode (No Progress Messages)
-
-```bash
-python night_simulator.py -q
+python night_sim_final.py -i ./images -o ./output -m custom_yolo.pt -c config.json
 ```
 
 ## Configuration
 
-Edit `config.json` to customize the simulation parameters:
+Create a `config.json` file to customize simulation parameters:
+
+```json
+{
+  "night_darkness": 0.40,
+  "headlight_brightness": 0.35,
+  "streetlight_brightness": 1.15,
+  "streetlight_spread": 100
+}
+```
+
+### Configuration Parameters
 
 | Parameter | Description | Range | Default |
 |-----------|-------------|-------|---------|
-| `darkening_factor` | Overall brightness reduction | 0.1 - 0.25 | 0.15 |
-| `gamma` | Gamma correction for deep blacks | 2.5 - 4.0 | 3.5 |
-| `headlight_brightness` | LED headlight intensity | 1.0 - 2.0 | 1.5 |
-| `streetlight_brightness` | Sodium-vapor light intensity | 0.8 - 1.5 | 1.2 |
-| `headlight_enabled` | Enable vehicle headlights | true/false | true |
-| `streetlight_enabled` | Enable street lights | true/false | true |
-| `volumetric_enabled` | Enable volumetric light cones | true/false | true |
-| `ground_reflection_enabled` | Enable ground reflections | true/false | true |
-| `lens_flare_enabled` | Enable lens flare effects | true/false | true |
-| `reflection_strength` | Ground reflection intensity | 0.2 - 0.6 | 0.4 |
-| `detect_vehicles` | Auto-detect vehicles | true/false | true |
+| `night_darkness` | Overall scene brightness (higher = brighter) | 0.2 - 0.6 | 0.40 |
+| `headlight_brightness` | Vehicle headlight intensity | 0.2 - 1.0 | 0.35 |
+| `streetlight_brightness` | Street light intensity | 0.8 - 1.5 | 1.15 |
+| `streetlight_spread` | Street light cone spread radius | 50 - 150 | 100 |
 
-### Example Custom Configurations
+### Example Configurations
 
-#### Extremely Dark Night (Minimal Lighting)
+#### Darker Evening (Late Dusk)
 
 ```json
 {
-  "darkening_factor": 0.12,
-  "gamma": 4.0,
-  "headlight_brightness": 1.8,
-  "streetlight_enabled": false,
-  "volumetric_enabled": true
+  "night_darkness": 0.30,
+  "headlight_brightness": 0.50,
+  "streetlight_brightness": 1.30,
+  "streetlight_spread": 120
 }
 ```
 
-#### Well-Lit Industrial Site
+#### Lighter Twilight (Early Evening)
 
 ```json
 {
-  "darkening_factor": 0.18,
-  "gamma": 3.2,
-  "streetlight_brightness": 1.4,
-  "headlight_brightness": 1.3,
-  "reflection_strength": 0.5
-}
-```
-
-#### Dry Surface (No Reflections)
-
-```json
-{
-  "darkening_factor": 0.15,
-  "ground_reflection_enabled": false,
-  "lens_flare_enabled": false
+  "night_darkness": 0.50,
+  "headlight_brightness": 0.25,
+  "streetlight_brightness": 1.00,
+  "streetlight_spread": 80
 }
 ```
 
 ## How It Works
 
-### 1. Pitch-Black Darkening
-- Applies aggressive gamma correction (γ=3.5) for deep blacks
-- Reduces brightness to 15% of original
-- Increases contrast in remaining visible areas
-- Desaturates colors for night-time appearance
-- Adds subtle cool tint
+### 1. Vehicle Detection
 
-### 2. Vehicle Detection
-- Enhanced edge detection with bilateral filtering
-- Multi-threshold Canny edge detection
-- Contour analysis with size and aspect ratio filtering
-- Supports all vehicle types: trucks, dumpers, tippers, LMVs, HMVs, graders, dozers, cars
+**With Custom YOLO Model**:
+- Loads your custom-trained YOLO model (e.g., `site_2_yolov11n_v1+v2.pt`)
+- Detects vehicles with confidence threshold > 0.25
+- Supports custom vehicle classes: vehicle, truck, dumper, tipper, etc.
+- Falls back to YOLOv8n if custom model not found
 
-### 3. LED Headlight Simulation
-- Pure white LED color (255, 255, 255)
-- Bright core with multi-layer glow
-- Volumetric light cones extending forward and downward
-- Lens flare effects with hexagonal patterns and starburst
-- Realistic beam length (60% of image height)
+**Without YOLO (Fallback)**:
+- Uses edge detection with Canny algorithm
+- Analyzes contours for vehicle-like shapes
+- Filters by area (1-40% of image) and aspect ratio (0.5-4.0)
 
-### 4. Sodium-Vapor Street Lights
-- Warm orange-yellow color (BGR: 100, 180, 255)
-- Multiple glow layers (bright core + halo)
-- Volumetric downward cones for area illumination
-- Positioned in upper portion of frame
+### 2. Twilight Darkening
 
-### 5. Ground Reflections
-- Simulates wet/damp industrial surfaces
-- Vertical flip of upper portion (lights)
-- Gradient-based blending (stronger near lights, fading down)
-- Gaussian blur for realistic reflection
+- Applies moderate gamma correction (**γ=1.8**) for realistic evening light
+- Reduces brightness to **40%** of original (configurable)
+- Adds subtle **blue tint** for twilight atmosphere
+- **Gradient sky darkening** (darker at top, lighter at bottom)
+- Preserves visibility while creating evening ambiance
 
-### 6. Lens Flare
-- Multiple concentric rings around bright lights
-- Starburst pattern radiating outward
-- Intensity decreases with distance from source
+### 3. Intelligent Headlight Placement
 
-## Tips for Best Results
+Automatically determines headlight position and beam direction based on vehicle location:
 
-1. **Pitch-Black Nights**: Use `darkening_factor` 0.12-0.15 and `gamma` 3.5-4.0
-2. **Lighter Nights**: Use `darkening_factor` 0.18-0.22 and `gamma` 3.0-3.2
-3. **Brighter Headlights**: Increase `headlight_brightness` to 1.7-2.0
-4. **Subtle Lighting**: Decrease brightness values to 1.0-1.2
-5. **Dry Surfaces**: Set `ground_reflection_enabled` to false
-6. **Wet Surfaces**: Increase `reflection_strength` to 0.5-0.6
-7. **No Street Lights**: Set `streetlight_enabled` to false for remote sites
-8. **Reduce Lens Flare**: Set `lens_flare_enabled` to false for cleaner look
+- **Left side vehicles** (< 35% width): Headlights on **right edge**, beaming **right**
+- **Right side vehicles** (> 65% width): Headlights on **left edge**, beaming **left**
+- **Center vehicles** (35-65% width): **Both headlights visible**, beaming **forward**
 
-## Troubleshooting
+Each headlight includes:
+- Bright white LED core (small, intense)
+- Soft glow halo (medium spread)
+- Volumetric beam cone (45% of image height)
+- Realistic falloff and expansion
 
-**Images too dark?**
-- Increase `darkening_factor` to 0.18-0.22
-- Decrease `gamma` to 3.0-3.2
+### 4. Right-Side Street Lights
 
-**Headlights not appearing?**
-- Ensure vehicles are clearly visible in original image
-- Check that `headlight_enabled` is true
-- Verify `detect_vehicles` is enabled
+- **2 street lights** positioned at **75%** and **90%** of image width (right side only)
+- **Golden-orange color** (BGR: 40, 150, 240) for industrial sodium-vapor appearance
+- Large bright core with extensive glow
+- Wide downward cone (65% of image height, 18% width spread)
+- High intensity for prominent illumination effect
 
-**Lights too bright?**
-- Decrease `headlight_brightness` to 1.2-1.3
-- Decrease `streetlight_brightness` to 0.9-1.0
+## Custom YOLO Model Integration
 
-**Lights too dim?**
-- Increase brightness parameters to 1.6-1.8
-- Check that volumetric effects are enabled
+The script is designed to work with your custom-trained YOLO models:
 
-**Reflections too strong?**
-- Decrease `reflection_strength` to 0.2-0.3
-- Disable with `ground_reflection_enabled: false`
+### Vehicle Class Mapping
 
-**Lens flare too intense?**
-- Disable with `lens_flare_enabled: false`
-- Reduce light brightness values
+Update the `VEHICLE_CLASSES` dictionary in the script to match your model's classes:
+
+```python
+VEHICLE_CLASSES = {
+    0: 'vehicle', 
+    1: 'truck', 
+    2: 'dumper', 
+    3: 'tipper'
+}
+```
+
+### Model Requirements
+
+- **Format**: PyTorch (.pt) YOLO model
+- **Classes**: Any vehicle types (truck, dumper, tipper, excavator, etc.)
+- **Confidence**: Detections above 0.25 confidence are used
+
+### Fallback Behavior
+
+- If custom model not found → tries YOLOv8n
+- If YOLO unavailable → uses edge detection
+- Script always produces output regardless of detection method
 
 ## Supported Image Formats
 
-- JPEG (.jpg, .jpeg)
-- PNG (.png)
-- BMP (.bmp)
-- TIFF (.tiff, .tif)
+- JPEG (`.jpg`, `.jpeg`)
+- PNG (`.png`)
 
 ## Project Structure
 
 ```
 night_simulation/
-├── night_simulator.py    # Main script (600+ lines)
-├── config.json          # Configuration file
-├── README.md           # This file
-├── .gitignore          # Git ignore rules
-├── input_files/        # Place input images here
-└── output_files/       # Midnight images saved here
+├── night_sim_final.py           # Main script (346 lines)
+├── site_2_yolov11n_v1+v2.pt    # Your custom YOLO model (optional)
+├── config.json                  # Configuration file (optional)
+├── requirements.txt            # Dependencies
+├── README.md                   # This file
+├── input_files/                # Place input images here
+└── output_files/               # Evening images saved here (auto-created)
 ```
 
 ## Use Cases
 
-- **Training object detection models** for midnight/night-time scenarios
+- **Training object detection models** for twilight/evening scenarios
 - **Augmenting datasets** for mining/industrial site surveillance
-- **Simulating extreme low-light conditions** for vehicle tracking
-- **Creating diverse training data** when midnight footage is unavailable
-- **Testing computer vision models** under challenging lighting conditions
-- **Security camera simulation** for industrial environments
+- **Simulating low-light conditions** when evening footage is unavailable
+- **Testing computer vision models** under reduced lighting
+- **Creating diverse training data** for all-day operation scenarios
+- **Edge case simulation** for autonomous vehicle systems
 
 ## Technical Details
 
 ### Image Processing Pipeline
-1. Load BGR image → Convert to float32
-2. Apply pitch-black darkening (gamma 3.5, factor 0.15)
-3. Increase contrast and reduce saturation
-4. Detect vehicles using enhanced edge detection
-5. Add sodium-vapor street lights with volumetric cones
-6. Add bright LED headlights with volumetric beams
-7. Apply lens flare effects around bright lights
-8. Add ground reflections for wet surface simulation
-9. Save final result
+
+1. **Load image** → Convert BGR to float32
+2. **Detect vehicles** using custom YOLO or fallback edge detection
+3. **Apply twilight darkening** (gamma 1.8, 40% brightness, blue tint, sky gradient)
+4. **Add street lights** on right side (2 lights at 75% and 90% width)
+5. **Determine headlight placement** based on vehicle position in frame
+6. **Add headlights** with directional beams (left, right, or forward)
+7. **Save result** with `night_` prefix
 
 ### Performance
-- Processing time: ~1-3 seconds per image (depends on resolution)
-- Memory usage: Proportional to image size
-- Recommended max resolution: 4K (3840×2160)
+
+- **Processing time**: ~1-3 seconds per image (depends on resolution and detection method)
+- **YOLO detection**: Faster and more accurate
+- **Edge detection**: Slower but works without dependencies
+- **Memory usage**: Proportional to image size
+- **Recommended resolution**: Up to 4K (3840×2160)
+
+## Troubleshooting
+
+### Images too dark?
+- Increase `night_darkness` to 0.45-0.55
+- Increase `streetlight_brightness` to 1.3-1.5
+
+### Images too bright (not evening-like)?
+- Decrease `night_darkness` to 0.30-0.35
+- Consider darker twilight settings
+
+### Headlights not appearing?
+- Check if vehicles are detected (console output shows detections)
+- Ensure YOLO model is loaded or edge detection is working
+- Verify vehicles are clearly visible in original image
+
+### Headlights in wrong position?
+- Check vehicle position in frame (left/center/right logic)
+- Adjust YOLO confidence threshold if needed
+- Custom model may need retraining if bounding boxes are inaccurate
+
+### Street lights too bright?
+- Decrease `streetlight_brightness` to 0.9-1.0
+- Reduce `streetlight_spread` to 70-80
+
+### Street lights too dim?
+- Increase `streetlight_brightness` to 1.3-1.5
+- Increase `streetlight_spread` to 120-150
+
+### YOLO model not loading?
+- Check model path is correct (default: `site_2_yolov11n_v1+v2.pt`)
+- Verify `ultralytics` is installed: `pip install ultralytics`
+- Script will use fallback detection if model fails
+
+## Tips for Best Results
+
+1. **Use clear day images** with visible vehicles for best headlight placement
+2. **Custom YOLO model** provides much better results than edge detection
+3. **Train your YOLO model** on vehicles from your specific site for optimal accuracy
+4. **Adjust `night_darkness`** based on desired time: 0.30-0.35 for late dusk, 0.45-0.50 for early evening
+5. **Balance headlight brightness**: Too bright hides vehicles, too dim looks unrealistic
+6. **Street light spread**: Wider spread (>100) creates more dramatic lighting
+
+## Known Limitations
+
+- Street lights always appear on right side only (by design for realism)
+- Headlight direction determined by position, not actual vehicle orientation
+- No ground reflections or lens flare effects (simplified version)
+- Edge detection fallback is less accurate than YOLO
 
 ## License
 
@@ -265,5 +301,6 @@ Data Augmentation Pipeline - 2026
 
 ## Version History
 
+- **v3.0** (2026-01-09): Final simplified version with custom YOLO, twilight simulation, intelligent headlights
 - **v2.0** (2026-01-06): Enhanced with volumetric lighting, lens flare, ground reflections
 - **v1.0** (2026-01-03): Initial release with basic night simulation

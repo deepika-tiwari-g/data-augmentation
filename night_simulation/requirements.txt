@@ -1,0 +1,11 @@
+# Night Simulation Requirements
+
+# Core dependencies
+opencv-python>=4.5.0
+numpy>=1.19.0
+
+# YOLO for vehicle detection (recommended)
+ultralytics>=8.0.0
+
+# For GPU acceleration (optional)
+# torch>=2.0.0
