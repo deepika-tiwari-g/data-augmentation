@@ -330,15 +330,15 @@ def main():
     parser.add_argument(
         '--input', '-i',
         type=str,
-        required=True,
-        help='Input folder containing images'
+        default='input_files',
+        help='Input folder containing images (default: input_files)'
     )
     
     parser.add_argument(
         '--output', '-o',
         type=str,
-        required=True,
-        help='Output folder for augmented images'
+        default='output_files',
+        help='Output folder for augmented images (default: output_files)'
     )
     
     parser.add_argument(
