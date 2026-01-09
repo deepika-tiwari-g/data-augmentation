@@ -12,9 +12,17 @@ import torch
 import torchvision.transforms as T
 from torchvision.models.segmentation import deeplabv3_resnet50, DeepLabV3_ResNet50_Weights
 
+try:
+    from ultralytics import YOLO
+    YOLO_AVAILABLE = True
+except ImportError:
+    YOLO_AVAILABLE = False
+    print("Warning: ultralytics not found. Install with: pip install ultralytics")
+
 
 # Global model cache to avoid reloading for each image
 _SEGMENTATION_MODEL = None
+_YOLO_MODEL = None
 _DEVICE = None
 
 
@@ -35,6 +43,25 @@ def get_segmentation_model():
         print("Model loaded successfully!")
     
     return _SEGMENTATION_MODEL, _DEVICE
+
+
+def get_yolo_model():
+    """Load YOLOv11 vehicle detection model (cached for efficiency)."""
+    global _YOLO_MODEL
+    
+    if _YOLO_MODEL is None and YOLO_AVAILABLE:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(script_dir, "site_2_yolov11n_v1+v2.pt")
+        
+        if os.path.exists(model_path):
+            print("Loading YOLOv11 vehicle detection model...")
+            _YOLO_MODEL = YOLO(model_path)
+            print(f"YOLO model loaded! Detected classes: {_YOLO_MODEL.names}")
+        else:
+            print(f"Warning: YOLO model not found at {model_path}")
+            print("Falling back to DeepLabV3 vehicle detection.")
+    
+    return _YOLO_MODEL
 
 
 class RegionDetector:
@@ -185,7 +212,38 @@ class RegionDetector:
         return cv2.GaussianBlur(final_mask, (21, 21), 0)
     
     def detect_vehicles(self):
-        """Detect vehicles using DeepLabV3 segmentation."""
+        """Detect vehicles using YOLO if available, else DeepLabV3."""
+        yolo_model = get_yolo_model()
+        
+        if yolo_model is not None:
+            return self._detect_vehicles_yolo()
+        else:
+            return self._detect_vehicles_deeplabv3()
+    
+    def _detect_vehicles_yolo(self):
+        """Detect vehicles using YOLOv11 site-specific model."""
+        yolo_model = get_yolo_model()
+        vehicle_mask = np.zeros((self.height, self.width), dtype=np.uint8)
+        
+        # Run inference
+        results = yolo_model(self.img, verbose=False)
+        
+        # Create mask from bounding boxes
+        for result in results:
+            if result.boxes is not None:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = map(int, box.xyxy[0].cpu().numpy())
+                    # Fill bounding box region
+                    vehicle_mask[y1:y2, x1:x2] = 255
+        
+        # Dilate to capture full vehicle extent and smooth edges
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (15, 15))
+        vehicle_mask = cv2.dilate(vehicle_mask, kernel)
+        
+        return cv2.GaussianBlur(vehicle_mask, (15, 15), 0)
+    
+    def _detect_vehicles_deeplabv3(self):
+        """Detect vehicles using DeepLabV3 segmentation (fallback)."""
         vehicle_mask = np.zeros((self.height, self.width), dtype=np.uint8)
         
         for cls in self.VEHICLE_CLASSES:
@@ -266,8 +324,8 @@ class RainEffects:
         img_float = img.astype(np.float32)
         mask_norm = road_mask.astype(np.float32) / 255.0
         
-        # Strong darkening (wet surfaces absorb light significantly)
-        darkening = 0.72
+        # Moderate darkening (wet surfaces absorb some light, but not too much)
+        darkening = 0.85  # Reduced from 0.72 for more subtle effect
         for c in range(3):
             img_float[:, :, c] = img_float[:, :, c] * (1 - mask_norm * (1 - darkening))
         
@@ -292,62 +350,158 @@ class RainEffects:
         return img_float.astype(np.uint8)
     
     @staticmethod
-    def add_water_puddles(img, road_mask, puddle_density=0.555):
+    def add_water_puddles(img, road_mask, vehicle_mask=None, puddle_density=0.555):
         """
         Add water puddles/potholes on the road with reflections.
+        Smart placement: avoids placing puddles on vehicles.
         
         Args:
             img: Input image
             road_mask: Road region mask
+            vehicle_mask: Vehicle region mask (puddles excluded from these areas)
             puddle_density: 0.0-1.0, how much of road area has puddles
         """
         rows, cols = img.shape[:2]
         img_float = img.astype(np.float32)
         mask_norm = road_mask.astype(np.float32) / 255.0
         
-        # Generate irregular puddle shapes using noise
-        puddle_noise = np.random.rand(rows, cols).astype(np.float32)
+        # Exclude vehicles from puddle placement area
+        if vehicle_mask is not None:
+            vehicle_norm = vehicle_mask.astype(np.float32) / 255.0
+            # Safe road area = road WITHOUT vehicles
+            safe_mask_norm = mask_norm * (1.0 - vehicle_norm)
+        else:
+            safe_mask_norm = mask_norm
         
-        # Blur to create blob shapes
-        puddle_noise = cv2.GaussianBlur(puddle_noise, (45, 45), 0)
+        # === NEW: Generate fewer but larger puddles ===
+        # Calculate road area to determine puddle count
+        road_area = np.sum(safe_mask_norm > 0.1)
+        total_area = rows * cols
+        road_ratio = road_area / total_area if total_area > 0 else 0.3
         
-        # Threshold to create puddle regions
-        puddle_threshold = 1.0 - puddle_density
-        puddle_mask = (puddle_noise > puddle_threshold).astype(np.float32)
+        # Adaptive puddle count: 4-5 puddles based on road size
+        base_puddle_count = 4
+        if road_ratio > 0.4:
+            num_puddles = 5
+        elif road_ratio > 0.2:
+            num_puddles = 4
+        else:
+            num_puddles = max(3, int(road_ratio * 15))  # Minimum 3 for small roads
         
-        # Apply only within road
-        puddle_mask = puddle_mask * mask_norm
+        # === Generate truly random, organic pothole shapes (not ellipses) ===
+        # Like irregular blobs that a 2-3 year child would draw
         
-        # Smooth edges
-        puddle_mask = cv2.GaussianBlur(puddle_mask, (15, 15), 0)
+        # Create puddle mask
+        puddle_mask = np.zeros((rows, cols), dtype=np.float32)
         
-        # === Create reflection effect ===
-        # Flip image vertically for reflection
-        reflection = cv2.flip(img, 0).astype(np.float32)
+        # Helper function to generate one random organic blob shape
+        def generate_random_blob(center_y, center_x, avg_radius):
+            """Generate random organic polygon shape (like a child's drawing)"""
+            # Random number of vertices (6-12 for organic look)
+            num_vertices = np.random.randint(6, 13)
+            
+            angles = []
+            current_angle = 0
+            for i in range(num_vertices):
+                # Random angular step (high irregularity)
+                step = (2 * np.pi / num_vertices) + np.random.uniform(-0.8, 0.8)
+                current_angle += step
+                angles.append(current_angle)
+            
+            # Generate polygon vertices with varying radii (spikiness)
+            vertices = []
+            for angle in angles:
+                # Random radius variation (50-150% of avg_radius)
+                radius = avg_radius * np.random.uniform(0.5, 1.5)
+                x = center_x + radius * np.cos(angle)
+                y = center_y + radius * np.sin(angle)
+                vertices.append([int(x), int(y)])
+            
+            return np.array(vertices, dtype=np.int32)
         
-        # Blur reflection (water surface distortion)
-        reflection = cv2.GaussianBlur(reflection, (9, 9), 0)
+        # Generate each puddle with organic random shape
+        for _ in range(num_puddles):
+            # Find valid placement area
+            valid_pixels = np.argwhere(safe_mask_norm > 0.1)
+            if len(valid_pixels) == 0:
+                break
+            
+            # Random center point for puddle
+            center_idx = np.random.randint(0, len(valid_pixels))
+            cy, cx = valid_pixels[center_idx]
+            
+            # Moderate puddle size (4-8% average radius)
+            avg_radius = int(min(rows, cols) * np.random.uniform(0.04, 0.08))
+            
+            # Generate random organic blob polygon
+            blob_vertices = generate_random_blob(cy, cx, avg_radius)
+            
+            # Create mask from polygon
+            single_puddle = np.zeros((rows, cols), dtype=np.uint8)
+            cv2.fillPoly(single_puddle, [blob_vertices], 255)
+            single_puddle = single_puddle.astype(np.float32) / 255.0
+            
+            # CRITICAL: Heavy smoothing to round out sharp polygon corners
+            # Real puddles never have sharp edges - they're always rounded
+            single_puddle = cv2.GaussianBlur(single_puddle, (31, 31), 0)
+            
+            # Add multi-scale noise for even more irregularity
+            noise1 = np.random.rand(rows, cols).astype(np.float32)
+            noise1 = cv2.GaussianBlur(noise1, (21, 21), 0)
+            noise2 = np.random.rand(rows, cols).astype(np.float32)
+            noise2 = cv2.GaussianBlur(noise2, (11, 11), 0)
+            
+            # Erode/grow edges randomly (gentle for rounded look)
+            irregularity_mask = (noise1 * 0.5 + noise2 * 0.5) > 0.4
+            single_puddle = single_puddle * irregularity_mask.astype(np.float32)
+            
+            # Final smoothing for round, natural edges
+            single_puddle = cv2.GaussianBlur(single_puddle, (25, 25), 0)
+            
+            # Only place on safe road area
+            single_puddle = single_puddle * safe_mask_norm
+            
+            # Add to overall puddle mask
+            puddle_mask = np.maximum(puddle_mask, single_puddle)
         
-        # Reduce reflection brightness (water absorbs some light)
-        reflection = reflection * 0.45
+        # Very light final smoothing (preserve organic edges)
+        puddle_mask = cv2.GaussianBlur(puddle_mask, (7, 7), 0)
         
-        # Add water tint (slight blue)
-        reflection[:, :, 0] = np.clip(reflection[:, :, 0] + 15, 0, 255)  # Blue
-        reflection[:, :, 2] = np.clip(reflection[:, :, 2] - 10, 0, 255)  # Red
+        # === Create realistic water reflection effect ===
+        # Puddles primarily reflect the sky above, not the ground below
         
-        # Darken puddle areas (water is darker than road)
-        puddle_darken = img_float * 0.65
+        # Extract sky region (top portion of image)
+        sky_height = int(rows * 0.5)  # Use top 50% as potential sky
+        sky_region = img[:sky_height, :].copy()
         
-        # Blend: puddle base + reflection
-        puddle_blend = puddle_darken * 0.6 + reflection * 0.4
+        # Create full-size sky reflection by tiling/stretching
+        sky_reflection = cv2.resize(sky_region, (cols, rows))
+        sky_reflection = sky_reflection.astype(np.float32)
         
-        # Apply puddle effect
+        # Add slight blur for water surface distortion
+        sky_reflection = cv2.GaussianBlur(sky_reflection, (7, 7), 0)
+        
+        # Darken reflection (water absorbs light)
+        sky_reflection = sky_reflection * 0.50
+        
+        # Add blue-green water tint
+        sky_reflection[:, :, 0] = np.clip(sky_reflection[:, :, 0] + 18, 0, 255)  # Blue
+        sky_reflection[:, :, 1] = np.clip(sky_reflection[:, :, 1] + 8, 0, 255)   # Green
+        sky_reflection[:, :, 2] = np.clip(sky_reflection[:, :, 2] - 8, 0, 255)   # Red
+        
+        # Darken puddle base (standing water is darker than dry road)
+        puddle_base = img_float * 0.60
+        
+        # Blend: dark base + sky reflection
+        puddle_color = puddle_base * 0.5 + sky_reflection * 0.5
+        
+        # Apply puddle effect to image
         puddle_mask_3ch = np.stack([puddle_mask] * 3, axis=-1)
-        result = img_float * (1 - puddle_mask_3ch) + puddle_blend * puddle_mask_3ch
+        result = img_float * (1 - puddle_mask_3ch) + puddle_color * puddle_mask_3ch
         
-        # Add subtle specular highlights on puddles (sky reflection)
+        # Add specular highlights (bright sky reflections on water surface)
         specular_noise = np.random.rand(rows, cols).astype(np.float32)
-        specular_noise = cv2.GaussianBlur(specular_noise, (5, 5), 0)
+        specular_noise = cv2.GaussianBlur(specular_noise, (9, 9), 0)
         specular = (specular_noise > 0.92).astype(np.float32) * puddle_mask * 0.3
         
         for c in range(3):
@@ -511,8 +665,8 @@ def apply_rain(img):
     result = RainEffects.wet_road(result, masks['road'])
     result = RainEffects.wet_vegetation(result, masks['vegetation'])
     
-    # Step 4: Add water puddles on road
-    result = RainEffects.add_water_puddles(result, masks['road'], puddle_density=0.52)
+    # Step 4: Add water puddles on road (avoiding vehicles)
+    result = RainEffects.add_water_puddles(result, masks['road'], masks['vehicle'], puddle_density=0.52)
     
     # Step 5: Depth-based haze
     result = RainEffects.apply_depth_haze(result, masks['depth'], intensity=0.30)
